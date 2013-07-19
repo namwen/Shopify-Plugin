@@ -1,0 +1,24 @@
+.ajax-loading-gif{
+	display: none;
+	margin-left: 10px;
+}
+#product-images{
+	min-height: 25px;
+
+	overflow: hidden;
+}
+.product-image{
+	width: 70px;
+	height: auto;
+}
+.image-box{
+	display: block;
+	width: 70px;
+	height: 70px;
+	overflow: hidden;
+	float: left;
+	border: 2px solid transparent;
+}
+.selected {
+	border: 2px solid #67c8ff;
+}
