@@ -1,7 +1,7 @@
 <?php
 /*
-Plugin Name: Shopify Products Full Plugin
-Description: Gathers shopify products and places them in the database, to be pulled later
+Plugin Name: Shopify Products
+Description: Gathers Shopify products and places them in the database, to be pulled later
 Version: 1.0
 Author: Will Newman
 
