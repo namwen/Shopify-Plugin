@@ -1,7 +1,7 @@
 <?php
 /*
-Plugin Name: Shopify Products Full Plugin
-Description: Gathers shopify products and places them in the database, to be pulled later
+Plugin Name: Shopify Products
+Description: Gathers Shopify products and places them in the database, to be pulled later
 Version: 1.0
 Author: Will Newman
 
@@ -19,7 +19,6 @@ function sp_install(){
 	$table_name = $wpdb->prefix . 'shopify_products';	
 	$variant_table_name = $wpdb->prefix .'shopify_product_variants';
 	
-	
 	$sql = "CREATE TABLE $table_name (
 		id int(25) NOT NULL,
 		title text NOT NULL,
@@ -27,14 +26,15 @@ function sp_install(){
 		description text NOT NULL,
 		images text DEFAULT '',
 		url VARCHAR(255) DEFAULT '' NOT NULL,
+		variants text DEFAULT '',
 		UNIQUE KEY id (id)
 	);";
 	
 	$variant_sql = "CREATE TABLE $variant_table_name(
 		variant_id int(25) NOT NULL,
 		variant_title VARCHAR(55) NOT NULL,
-		variant_color VARCHAR(25) DEFAULT '',
-		variant_size VARCHAR(15) DEFAULT '',
+		variant_option_one VARCHAR(25) DEFAULT '',
+		variant_option_two VARCHAR(15) DEFAULT '',
 		variant_price VARCHAR(10) DEFAULT '',
 		variant_parent_id int(25) NOT NULL,
 		UNIQUE KEY id (variant_id),
@@ -105,7 +105,7 @@ function shopify_admin_page() {
 
         <tr valign="top">
        	 <th scope="row">Populate the database with the products in your store:</th>
-       	 <td><input class="button-secondary" type="submit" name="submit" value="Populate Database"/><span class="ajax-loading-gif"><img src="/wp-admin/images/wpspin_light.gif" /> </span></td>
+       	 <td><input class="button-secondary" type="submit" name="submit" value="Populate Database"/><span class="ajax-loading-gif"><img src="images/wpspin_light.gif" /> </span></td>
         </tr>
 	</table>
 </form>
@@ -115,7 +115,7 @@ function shopify_admin_page() {
 	<table class="form-table">
         <tr valign="top">
        	 <th scope="row">Update the database to reflect changes made in the store:</th>
-       	 <td><input class="button-secondary" type="submit" name="submit" value="Update Database"/><span class="ajax-loading-gif"><img src="/wp-admin/images/wpspin_light.gif" /></span></td>
+       	 <td><input class="button-secondary" type="submit" name="submit" value="Update Database"/><span class="ajax-loading-gif"><img src="images/wpspin_light.gif" /></span></td>
         </tr>
 	</table>
 </form>
@@ -127,20 +127,26 @@ add_action( 'admin_enqueue_scripts', 'my_enqueue' );
 
 function my_enqueue($hook) {
 	wp_enqueue_script( 'ajax-script', plugins_url('Shopify-Plugin/js/shopify-ajax.js', dirname(__FILE__)) , array('jquery'));
-	// in javascript, object properties are accessed as ajax_object.ajax_url, ajax_object.we_value
+
 	wp_localize_script( 'ajax-script', 'ajax_object', array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'we_value' => $email_nonce ) );
 }
 
 add_action('wp_ajax_my_action', 'populate_db_callback');
 /* Populate the Database with the products from the store */
+/*
+	TODO
+		- Change variable names and row names in the database to options
+		  rather than 'color'. We don't know what the option will actually be.
+*/
 function populate_db_callback() {
 	if( $_POST['submitted'] == true )
 	{
-		global $wpdb; // this is how you get access to the database
+		global $wpdb; // Get access to the Wordpress database
 		$table_name = $wpdb->prefix . 'shopify_products';	
 		$variant_table_name = $wpdb->prefix .'shopify_product_variants';
 		
 		// Include the file that with the Shopify API functions.
+		// Setup some variables we will need to reference
 		require_once(plugin_dir_path(__FILE__).'/shopify-api.php');
 		$shopify_domain = get_option('shopify_store_domain');
 		$shopify_api_key = get_option('shopify_api_key');
@@ -161,6 +167,7 @@ function populate_db_callback() {
 		    $product_id = $product['id'];
 		    $product_description = $product['body_html'];
 		    $product_url  = $shopify_domain .'/products/'.$product_handle;
+		   
 		    /* deal with the product images */
 		    $product_image_array = array();
 
@@ -172,19 +179,32 @@ function populate_db_callback() {
 				array_push( $product_image_array, $product['images'][0]['src'] );
 			}
 			$serialized_images = serialize($product_image_array);
-		   		     
+  			
+  			/* Deal with the variants for the product table */
+  			$product_variant_array = array();
+
+  			if( count($product['variants']) > 1 ){
+			    foreach( $product['variants'] as $variant ) {
+				   array_push($product_variant_array, $variant['id'] );
+				}
+		    }else{
+		    	array_push( $product_variant_array, $product['variants'][0]['id'] );
+		    }
+		    $serialized_variants = serialize( $product_variant_array );
+
+		   	/* Perform the SQL INSERT */	     
+		    $product_rows_affected =  $wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'variants' => $serialized_variants ));
 		    
-		    $product_rows_affected =  $wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images ));
-		    
+		    /* Populate the variant table */
 		    if( !empty($product['variants'])){
 			    foreach( $product['variants'] as $variant) {
 				    $variant_id = $variant['id'];
 				    $variant_parent_id = $product_id;
 				    $variant_title = $variant['title'];
-				    $variant_color = $variant['option1'];
-				    $variant_size = $variant['option2'];
+				    $variant_option_one = $variant['option1'];
+				    $variant_option_two = $variant['option2'];
 				    $variant_price = $variant['price'];
-				    $variant_rows_affected = $wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_color' => $variant_color, 'variant_size' => $variant_size, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );
+				    $variant_rows_affected = $wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );
 			    }
 		    }
 		}
@@ -250,10 +270,10 @@ function update_db_callback() {
 				    $variant_id = $variant['id'];
 				    $variant_parent_id = $product_id;
 				    $variant_title = $variant['title'];
-				    $variant_color = $variant['option1'];
-				    $variant_size = $variant['option2'];
+				    $variant_option_one = $variant['option1'];
+				    $variant_option_two = $variant['option2'];
 				    $variant_price = $variant['price'];
-				    $variant_rows_affected = $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_color' => $variant_color, 'variant_size' => $variant_size, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id));
+				    $variant_rows_affected = $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id));
 			    }
 		    }
 		}
@@ -289,6 +309,7 @@ function test_the_echo(){
 // Plugin CSS File
 wp_register_style('shopify-product-style', plugins_url('shopify-products-style.css', __FILE__));
 wp_enqueue_style('shopify-product-style');
+
 // Function to output a product to the page
 function shopify_output_product( $product_id){
 	$product = get_product( $product_id );
@@ -299,7 +320,7 @@ function shopify_output_variant( $variant_id){
 	$variant_parent = get_variant_parent( $variant );
 	?>
 	<h3><?php echo $variant_parent->title . "<br/>"; ?></h3>
-	<p><?php echo $variant->variant_color ."<br/>"; ?></p>
+	<p><?php echo $variant->variant_option_one ."<br/>"; ?></p>
 	<p><?php echo $variant->variant_price ."<br/>"; ?></p>			
 	<?php
 }
@@ -354,4 +375,12 @@ function get_variant_parent_by_id( $variant_id){
 	$variant_parent_id = $variant->variant_parent_id;
 	$variant_parent = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE id = $variant_parent_id ");
 	return $variant_parent[0];
+}
+
+// Get Variants of a Product
+function get_variants_of_product( $parent_id){
+	$product = get_product($parent_id);
+	$product_variants = $product->variants;
+	$product_variants = unserialize( $product_variants );
+	return $product_variants;
 }
