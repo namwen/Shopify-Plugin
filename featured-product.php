@@ -19,9 +19,6 @@ class Featured_Product extends WP_Widget {
 			$widget_ops
 		);
 	}
-	/* 
-		TODO: change this whole thing so it outputs the variant correctly
-	*/	
 	function widget( $args, $instance){
 		extract($args,  EXTR_SKIP);
 		// Hold the product id
@@ -57,7 +54,6 @@ class Featured_Product extends WP_Widget {
 			- 	Store properties of the variant: title, options, and price
 
 		*/
-
 
 
 		echo $before_widget;
@@ -135,13 +131,6 @@ class Featured_Product extends WP_Widget {
 		
 		$show_description = esc_attr($instance['show-description']);
 		$products = get_products(); // Get all the products from the DB
-		/* 
-			Loop through all the products. Each parent should act as a selection group.
-			The parent is not selectable. 
-				Variant titles are selectable. Save the variant ID as the value of the option.
-
-			Images should be visible on immediate load. No need to de-select then reselect to view them.
-		*/
 		?>
 		  <p>
 		  	<h4>Featured Product: </h4>
@@ -151,11 +140,10 @@ class Featured_Product extends WP_Widget {
 				  <?php
 				  	  $k = 0;
 					  foreach( $products as $product){ // Cycle through each product
-					  		echo '<optgroup label="'.$product->title.'">';
-					  		/*
-								Cycle through all the variants belonging to this particular product.
-								Somehow.
-					  		*/
+					  		echo '<optgroup label="'.$product->title.'">';					  	
+							
+							//	Cycle through all the variants belonging to this particular product.					 	
+							
 								$variants = array();
 								$variants = get_variants_of_product( $product->id );
 								foreach( $variants as $variant) {
@@ -170,7 +158,9 @@ class Featured_Product extends WP_Widget {
 		     </select>
 		  	</div>
 		</p>
+		
 		<input type="hidden" value="<?php echo $title; ?>" name="<?php echo $this->get_field_name('title');?>" id="<?php echo $this->get_field_id('title'); ?>">
+		
 		<div id="selected-image">
 			<input checked type="hidden" value="<?php echo $the_image ;?>" name="<?php echo $this->get_field_name('product-image');?>" id="<?php echo $this->get_field_id('product-image');?>">
 		</div>
@@ -211,15 +201,10 @@ class Featured_Product extends WP_Widget {
 		<label for="<?php echo $this->get_field_id('link-price'); ?>">Link Price </label>
 		<input type="checkbox" name="<?php echo $this->get_field_name('link-price');?>" id="<?php echo $this->get_field_id('link-price'); ?>" value="1" <?php checked( '1',$link_price );?> />
 		<br/>
-
-
-
-
 		<?php
 	}
 }
 
 add_action( 'widgets_init', create_function('', 'return register_widget("Featured_Product");') );
-
 
 ?>

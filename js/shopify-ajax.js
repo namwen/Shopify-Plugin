@@ -31,13 +31,9 @@ jQuery(document).ready(function($) {
 		
 	});
 	
-	//$(".widget-content #shopify-images-holder").append('<div id="product-images"></div>');
-
 	/* Handle state change of the product selection form
 	   We Want to get the images associated with the product and allow the user to select one.
 	*/
-
-	// var product_selector_id = $("#product-selection-dropdown select")[1];
 
 	$(document).on('change','#product-selection-dropdown select', function(){
 		var $parent = $(this).closest('.widget');
@@ -48,17 +44,13 @@ jQuery(document).ready(function($) {
 		var selectedID = $(this).val();
 		// get the parent id 
 		var parentID = $(this).find(':selected').data('parent');
-		
-		/*
-			Get the product images 
-		*/
-		// What we're sending in our POST request
+
 		var data = {
 			action: 'get_product_images',
 			theID: parentID
 		};
 		// Make the ajax request to get the images
-		// ajaxurl is already defined from the wp_local_script call
+		// ajaxurl is already defined from the wp_localize_script call
 		var getImages = $.ajax({
 			type: "POST",
 			url: ajaxurl,

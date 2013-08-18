@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Shopify Products
-Description: Gathers Shopify products and places them in the database, to be pulled later
+Description: Stores Shopify products in the WordPress database, offers a few ways of displaying them.
 Version: 1.0
 Author: Will Newman
 
@@ -132,11 +132,7 @@ function enqueue_shopify_scripts($hook) {
 
 add_action('wp_ajax_populate_db', 'populate_db_callback');
 /* Populate the Database with the products from the store */
-/*
-	TODO
-		- Change variable names and row names in the database to options
-		  rather than 'color'. We don't know what the option will actually be.
-*/
+
 function populate_db_callback() {
 	$nonce = $_POST['accessDbNonce'];
 
@@ -213,7 +209,7 @@ function populate_db_callback() {
 			    }
 		    }
 		}
-		echo("Product rows affected: ". $product_rows_affected ."\n Variant rows affected: ". $variant_rows_affected."\n");
+		echo "Complete.";
 		die();
 	}
 	die(); // this is required to return a proper result
@@ -311,8 +307,7 @@ function update_db_callback() {
 			    }
 		    }
 		}
-/* 		echo("Product rows affected: " .$product_rows_affected . "\n Variant rows affected: ". $variant_rows_affected); */
-		print_r($products);
+		echo "Complete.";
 		die();
 	}
 	die(); // this is required to return a proper result
@@ -336,28 +331,15 @@ function get_product_images_callback(){
 		die();
 	}
 }
-add_action('wp_ajax_test_echo', 'test_the_echo');
-function test_the_echo(){
-	echo "works";
-}
+
 // Plugin CSS File
 wp_register_style('shopify-product-style', plugins_url('shopify-products-style.css', __FILE__));
 wp_enqueue_style('shopify-product-style');
 
-// Function to output a product to the page
-function shopify_output_product( $product_id){
-	$product = get_product( $product_id );
-}
-// Outputs main info needed from the variant
-function shopify_output_variant( $variant_id){
-	$variant = get_variant($variant_id);
-	$variant_parent = get_variant_parent( $variant );
-	?>
-	<h3><?php echo $variant_parent->title . "<br/>"; ?></h3>
-	<p><?php echo $variant->variant_option_one ."<br/>"; ?></p>
-	<p><?php echo $variant->variant_price ."<br/>"; ?></p>			
-	<?php
-}
+
+/*
+	Helper functions.
+*/
 
 //Return array of all Products
 function get_products(){
@@ -383,8 +365,8 @@ function get_variant($id){
 	$variant = $wpdb->get_results("SELECT * FROM ". VARIANT_TABLE ." WHERE variant_id = $id ");
 	return $variant[0];	
 }
-//Returns first image from list of images
-function get_product_image_by_id( $id ){
+//Returns first image from array of images
+function get_product_image( $id ){
 	$product_images = get_product_images( $id);
 	$product_images = unserialize($product_images);
 	return $product_images[0];
@@ -409,7 +391,7 @@ function get_variant_parent_by_id( $variant_id ){
 	$variant_parent = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE id = $variant_parent_id ");
 	return $variant_parent[0];
 }
-// Get Variants of a Product
+// Returns array of variants belonging to a product
 function get_variants_of_product( $parent_id ){
 	$product = get_product($parent_id);
 	$product_variants = $product->variants;
