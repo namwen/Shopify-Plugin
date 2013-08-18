@@ -11,6 +11,7 @@ The plugin uses [ this nice little PHP Shopify client library  ](https://github.
 My motivations for creating this were pretty straightforward: I needed a way to combine a Shopify-based ecommerce store with a custom, content heavy, WordPress theme.
 
 The plugin is pretty simple in how it works:
+
 1. Creates an options page for you to enter your Shopify API information.
 2. Creates a couple new tables in the WordPress database.
 3. Fills the tables with your products and their variants.
