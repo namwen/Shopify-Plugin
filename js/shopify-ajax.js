@@ -1,10 +1,12 @@
 jQuery(document).ready(function($) {
+
 	$("#populateDB").submit( function(event){
 		event.preventDefault();
 		$("#populateDB .ajax-loading-gif").show();
 		var data = {	
-		    action: 'my_action',
-		    submitted: true
+			action: 'populate_db',
+			submitted: true,
+			accessDbNonce : MyAjax.accessDbNonce
 		};		
 		jQuery.post(ajaxurl, data, function(response) {
 		    console.log('Database populated.\n' + response);
@@ -18,7 +20,9 @@ jQuery(document).ready(function($) {
 		$("#updateDB .ajax-loading-gif").show();
 		var data = {	
 		    action: 'update_db',
-		    submitted: true
+		    submitted: true,
+		    accessDbNonce : MyAjax.accessDbNonce
+
 		};		
 		jQuery.post(ajaxurl, data, function(response) {
 		    console.log('Database updated.\n '+ response);
@@ -35,10 +39,11 @@ jQuery(document).ready(function($) {
 
 	// var product_selector_id = $("#product-selection-dropdown select")[1];
 
-	$("#product-selection-dropdown select").change(function(){
-		
+	$(document).on('change','#product-selection-dropdown select', function(){
+		var $parent = $(this).closest('.widget');
+
 		// Clear out any images that are already in the image holder
-		$("#shopify-images-holder #product-images").empty();
+		$("#"+$parent.attr('id') +" #shopify-images-holder #product-images").empty();
 		
 		var selectedID = $(this).val();
 		// get the parent id 
@@ -53,7 +58,7 @@ jQuery(document).ready(function($) {
 			theID: parentID
 		};
 		// Make the ajax request to get the images
-		// ajaxurl is already defined by Wordpress
+		// ajaxurl is already defined from the wp_local_script call
 		var getImages = $.ajax({
 			type: "POST",
 			url: ajaxurl,
@@ -64,15 +69,15 @@ jQuery(document).ready(function($) {
 		// Place each of the images we received in the ajax response into the photo holder
 		getImages.done(function(response){
 			$.each(response,function( i, val){
-				jQuery("#shopify-images-holder #product-images").append('<a href="#_" data-img-src="'+val+'" class="image-box"><img src="'+val +'" class="product-image"></a>');
-			})
+				jQuery("#"+$parent.attr('id')+" #shopify-images-holder #product-images").append('<a href="#_" data-img-src="'+val+'" class="image-box"><img src="'+val +'" class="product-image"></a>');
+			});
 		});
 
 		// If the request fails, let's find out why
 		getImages.fail(function( jqXHR, textStatus){
 			console.log("failed: "+ textStatus);
 		});
-	})
+	});
 	// When an image is clicked on we consider it selected and mark it as such with a class
 	$(document).on('click','.image-box', function(e){
 		e.preventDefault();

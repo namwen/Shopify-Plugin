@@ -12,6 +12,7 @@ $sp_db_version = 1.0;
 
 define('PRODUCT_TABLE', $wpdb->prefix .'shopify_products');
 define('VARIANT_TABLE', $wpdb->prefix .'shopify_product_variants');
+
 //Create the Tables on installation
 function sp_install(){
 	global $wpdb;
@@ -76,23 +77,23 @@ function shopify_admin_page() {
 
     <table class="form-table">
         <tr valign="top">
-        <th scope="row">Shopify Store Domain</th>
-        <td><input type="text" name="shopify_store_domain" value="<?php echo get_option('shopify_store_domain'); ?>" /></td>
+       	 	<th scope="row">Shopify Store Domain</th>
+        	<td><input type="text" name="shopify_store_domain" value="<?php echo get_option('shopify_store_domain'); ?>" /></td>
         </tr>
          
         <tr valign="top">
-        <th scope="row">Shopify API Key</th>
-        <td><input type="text" name="shopify_api_key" value="<?php echo get_option('shopify_api_key'); ?>" /></td>
+        	<th scope="row">Shopify API Key</th>
+        	<td><input type="text" name="shopify_api_key" value="<?php echo get_option('shopify_api_key'); ?>" /></td>
         </tr>
         
         <tr valign="top">
-        <th scope="row">Shopify API Pass</th>
-        <td><input type="text" name="shopify_api_pass" value="<?php echo get_option('shopify_api_pass'); ?>" /></td>
+        	<th scope="row">Shopify API Pass</th>
+        	<td><input type="text" name="shopify_api_pass" value="<?php echo get_option('shopify_api_pass'); ?>" /></td>
         </tr>
         
         <tr valign="top">
-        <th scope="row"> Save the above settings</th>
-        <td>    <?php submit_button('Save Changes', 'primary', 'submit', false); ?></td>
+        	<th scope="row"> Save the above settings</th>
+        	<td><?php submit_button('Save Changes', 'primary', 'submit', false); ?></td>
         </tr>
     </table>
     
@@ -102,10 +103,9 @@ function shopify_admin_page() {
 <form  id="populateDB" method="post" action="">
 	<h3> Populate the database:</h3>
 	<table class="form-table">
-
         <tr valign="top">
-       	 <th scope="row">Populate the database with the products in your store:</th>
-       	 <td><input class="button-secondary" type="submit" name="submit" value="Populate Database"/><span class="ajax-loading-gif"><img src="images/wpspin_light.gif" /> </span></td>
+       		<th scope="row">Populate the database with the products in your store:</th>
+       		<td><input class="button-secondary" type="submit" name="submit" value="Populate Database"/><span class="ajax-loading-gif"><img src="images/wpspin_light.gif" /> </span></td>
         </tr>
 	</table>
 </form>
@@ -123,15 +123,14 @@ function shopify_admin_page() {
 <?php 
 }
 
-add_action( 'admin_enqueue_scripts', 'my_enqueue' );
+add_action( 'admin_enqueue_scripts', 'enqueue_shopify_scripts' );
 
-function my_enqueue($hook) {
+function enqueue_shopify_scripts($hook) {
 	wp_enqueue_script( 'ajax-script', plugins_url('Shopify-Plugin/js/shopify-ajax.js', dirname(__FILE__)) , array('jquery'));
-
-	wp_localize_script( 'ajax-script', 'ajax_object', array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'we_value' => $email_nonce ) );
+	wp_localize_script( 'ajax-script', 'MyAjax', array( 'ajax_url' => admin_url( 'admin-ajax.php'), 'accessDbNonce' => wp_create_nonce('myajax-access-db-nonce')) );
 }
 
-add_action('wp_ajax_my_action', 'populate_db_callback');
+add_action('wp_ajax_populate_db', 'populate_db_callback');
 /* Populate the Database with the products from the store */
 /*
 	TODO
@@ -139,7 +138,13 @@ add_action('wp_ajax_my_action', 'populate_db_callback');
 		  rather than 'color'. We don't know what the option will actually be.
 */
 function populate_db_callback() {
-	if( $_POST['submitted'] == true )
+	$nonce = $_POST['accessDbNonce'];
+
+	if( ! wp_verify_nonce( $nonce, 'myajax-access-db-nonce')):
+		die( 'nonce doesn\'t check out, brah.');
+	endif;
+
+	if( $_POST['submitted'] == true && current_user_can('activate_plugins') )
 	{
 		global $wpdb; // Get access to the Wordpress database
 		$table_name = $wpdb->prefix . 'shopify_products';	
@@ -220,7 +225,14 @@ add_action('wp_ajax_update_db', 'update_db_callback');
 // Need to do something about products which are no longer inside the 
 // store but are still in the DB
 function update_db_callback() {
-	if( $_POST['submitted'] == true )
+
+	$nonce = $_POST['accessDbNonce'];
+
+	if( ! wp_verify_nonce( $nonce, 'myajax-access-db-nonce')):
+		die( 'nonce doesn\'t check out, brah.');
+	endif;
+
+	if( $_POST['submitted'] == true && current_user_can('activate_plugins') )
 	{
 		global $wpdb; // this is how you get access to the database
 		$table_name = $wpdb->prefix . 'shopify_products';	
@@ -262,8 +274,25 @@ function update_db_callback() {
 				array_push( $product_image_array, $product['images'][0]['src'] );
 			}
 			$serialized_images = serialize($product_image_array);
-		    
-		    $product_rows_affected =  $wpdb->update( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images ), array('id'=> $product_id));
+  			
+  			/* Deal with the variants for the product table */
+  			$product_variant_array = array();
+
+  			if( count($product['variants']) > 1 ){
+			    foreach( $product['variants'] as $variant ) {
+				   array_push($product_variant_array, $variant['id'] );
+				}
+		    }else{
+		    	array_push( $product_variant_array, $product['variants'][0]['id'] );
+		    }
+		    $serialized_variants = serialize( $product_variant_array );
+
+		    if( $wpdb->update( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images ), array('id'=> $product_id))){
+
+		    }else{
+				$inserted = $wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'variants' => $serialized_variants ));
+		    }
+		    //$product_rows_affected =  $wpdb->update( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images ), array('id'=> $product_id));
 		    // If the product has variants
 		    if( !empty($product['variants'])){
 			    foreach( $product['variants'] as $variant) {
@@ -273,12 +302,17 @@ function update_db_callback() {
 				    $variant_option_one = $variant['option1'];
 				    $variant_option_two = $variant['option2'];
 				    $variant_price = $variant['price'];
-				    $variant_rows_affected = $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id));
+				    //$variant_rows_affected = $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id));
+			    	if( $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id)) ){
+
+			    	}else{
+						$wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );	
+			    	}
 			    }
 		    }
 		}
 /* 		echo("Product rows affected: " .$product_rows_affected . "\n Variant rows affected: ". $variant_rows_affected); */
-	print_r( $products);
+		print_r($products);
 		die();
 	}
 	die(); // this is required to return a proper result
@@ -355,30 +389,28 @@ function get_product_image_by_id( $id ){
 	$product_images = unserialize($product_images);
 	return $product_images[0];
 }
-
 // Return array of product images
-function get_product_images( $id){
+function get_product_images( $id ){
 	$product = get_product($id);
 	return $product->images;
 }
 // Returns Variant's Parent Object
-function get_variant_parent( $variant){
+function get_variant_parent( $variant ){
 	global $wpdb;
 	$variant_parent_id = $variant->variant_parent_id;
 	$variant_parent = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE id = $variant_parent_id ");
 	return $variant_parent[0];
 }
 // Returns Variant's Parent Object
-function get_variant_parent_by_id( $variant_id){
+function get_variant_parent_by_id( $variant_id ){
 	global $wpdb;
 	$variant = get_variant( $variant_id);
 	$variant_parent_id = $variant->variant_parent_id;
 	$variant_parent = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE id = $variant_parent_id ");
 	return $variant_parent[0];
 }
-
 // Get Variants of a Product
-function get_variants_of_product( $parent_id){
+function get_variants_of_product( $parent_id ){
 	$product = get_product($parent_id);
 	$product_variants = $product->variants;
 	$product_variants = unserialize( $product_variants );
