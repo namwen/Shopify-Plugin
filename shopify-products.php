@@ -126,7 +126,8 @@ function shopify_admin_page() {
 add_action( 'admin_enqueue_scripts', 'enqueue_shopify_scripts' );
 
 function enqueue_shopify_scripts($hook) {
-	wp_enqueue_script( 'ajax-script', plugins_url('Shopify-Plugin/js/shopify-ajax.js', dirname(__FILE__)) , array('jquery'));
+        $path = explode('/', dirname(__FILE__));
+        wp_enqueue_script( 'ajax-script', plugins_url(array_pop($path) . '/js/shopify-ajax.js', dirname(__FILE__)) , array('jquery'));
 	wp_localize_script( 'ajax-script', 'MyAjax', array( 'ajax_url' => admin_url( 'admin-ajax.php'), 'accessDbNonce' => wp_create_nonce('myajax-access-db-nonce')) );
 }
 
