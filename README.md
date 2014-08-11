@@ -32,7 +32,7 @@ If there's enough interest or people want to contribute I'd be happy to make a m
 
 Off the top of my head there are a few things I have in mind:
 
-More robust product features - As of now there is no way to store product options, collections, tags, skus, quantity, vendor, etc.
+More robust product features - As of now there is no way to store product options, skus, quantity, etc.
 
 Add to cart / View cart ( with items and totals ) functionality.
 
