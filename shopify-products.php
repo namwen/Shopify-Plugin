@@ -28,6 +28,11 @@ function sp_install(){
 		images text DEFAULT '',
 		url VARCHAR(255) DEFAULT '' NOT NULL,
 		variants text DEFAULT '',
+		collections text DEFAULT '',
+		tags text DEFAULT '',
+		type VARCHAR(255) DEFAULT '' NOT NULL,
+		vendor VARCHAR(255) DEFAULT '' NOT NULL,
+                visibility VARCHAR(15) DEFAULT '' NOT NULL,
 		UNIQUE KEY id (id)
 	);";
 	
