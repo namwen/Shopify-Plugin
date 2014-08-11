@@ -414,19 +414,19 @@ function get_products_by_tag($tag) {
 //Return array of all Products with the given collection number
 function get_products_by_collection($collection) {
 	global $wpdb;
-	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE collections LIKE \'%"'. $collection .'"%\'');
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE collections LIKE \'%:'. $collection .';%\'');
 	return $products;
 }
 //Return array of all Products with the given vendor
 function get_products_by_vendor($vendor) {
 	global $wpdb;
-	$products = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE vendor = $vendor ");
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE vendor = "'. $vendor . '"');
 	return $products;
 }
 //Return array of all Products with the given type
 function get_products_by_type($type) {
 	global $wpdb;
-	$products = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE type = $type ");
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE type = "'. $type .'"');
 	return $products;
 }
 // Returns Variant Object
