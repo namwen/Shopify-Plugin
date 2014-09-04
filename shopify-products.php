@@ -12,6 +12,7 @@ $sp_db_version = 1.0;
 
 define('PRODUCT_TABLE', $wpdb->prefix .'shopify_products');
 define('VARIANT_TABLE', $wpdb->prefix .'shopify_product_variants');
+$collections = false;
 
 //Create the Tables on installation
 function sp_install(){
@@ -28,6 +29,10 @@ function sp_install(){
 		images text DEFAULT '',
 		url VARCHAR(255) DEFAULT '' NOT NULL,
 		variants text DEFAULT '',
+		collections text DEFAULT '',
+		tags text DEFAULT '',
+		type VARCHAR(255) DEFAULT '' NOT NULL,
+		vendor VARCHAR(255) DEFAULT '' NOT NULL,
 		UNIQUE KEY id (id)
 	);";
 	
@@ -157,18 +162,24 @@ function populate_db_callback() {
 		try{
 			$shopify = shopify_api_client($shopify_domain, NULL, $shopify_api_key, $shopify_api_pass, true);
 			$products = $shopify('GET', '/admin/products.json', array('published_status'=>'published'));
+                        $product_collections = get_collection_data();
+                        trigger_error(print_r($product_collections,true));
 		}catch( ShopifyApiException $e){
 			echo ( $e->getInfo() );
 		}catch( ShopifyCurlException $e){
 			echo( $e->getMessage() );
 		}
-		
 		foreach( $products as $product){
 		    $product_title = $product['title'];
 		    $product_handle = $product['handle'];
 		    $product_id = $product['id'];
 		    $product_description = $product['body_html'];
-		    $product_url  = $shopify_domain .'/products/'.$product_handle;
+		    $product_url  = 'https://' . $shopify_domain .'/products/'.$product_handle;
+                    $product_type = $product['product_type'];
+                    $serialized_tags = serialize(explode(', ', $product['tags']));
+                    $product_vendor = $product['vendor'];
+                    $serialized_collections = '';
+                    if(isset($product_collections[$product['id']])) $serialized_collections = serialize($product_collections[$product['id']]);
 		   
 		    /* deal with the product images */
 		    $product_image_array = array();
@@ -178,7 +189,7 @@ function populate_db_callback() {
 				    array_push( $product_image_array, $image['src'] );
 			    }
 			}else{
-				array_push( $product_image_array, $product['images'][0]['src'] );
+				if(isset($product['images'][0])) array_push( $product_image_array, $product['images'][0]['src'] );
 			}
 			$serialized_images = serialize($product_image_array);
   			
@@ -195,7 +206,7 @@ function populate_db_callback() {
 		    $serialized_variants = serialize( $product_variant_array );
 
 		   	/* Perform the SQL INSERT */	     
-		    $product_rows_affected =  $wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'variants' => $serialized_variants ));
+		    $product_rows_affected =  @$wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'variants' => $serialized_variants, 'collections' => $serialized_collections, 'tags' => $serialized_tags, 'type' => $product_type, 'vendor' => $product_vendor ));
 		    
 		    /* Populate the variant table */
 		    if( !empty($product['variants'])){
@@ -206,7 +217,7 @@ function populate_db_callback() {
 				    $variant_option_one = $variant['option1'];
 				    $variant_option_two = $variant['option2'];
 				    $variant_price = $variant['price'];
-				    $variant_rows_affected = $wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );
+				    $variant_rows_affected = @$wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );
 			    }
 		    }
 		}
@@ -246,6 +257,7 @@ function update_db_callback() {
 			$shopify = shopify_api_client($shopify_domain, NULL, $shopify_api_key, $shopify_api_pass, true);
 			// Get the products from the shopify store
 			$products = $shopify('GET', '/admin/products.json', array('published_status'=>'published'));
+                        $product_collections = get_collection_data();
 		}catch( ShopifyApiException $e){
 			echo ( $e->getInfo() );
 		}catch( ShopifyCurlException $e){
@@ -259,7 +271,13 @@ function update_db_callback() {
 		    $product_handle = $product['handle'];
 		    $product_id = $product['id'];
 		    $product_description = $product['body_html'];
-		    $product_url  = $shopify_domain .'/products/'.$product_handle;
+		    $product_url  = 'https://' . $shopify_domain .'/products/'.$product_handle;
+                    $product_type = $product['product_type'];
+                    $serialized_tags = serialize(explode(', ', $product['tags']));
+                    $product_vendor = $product['vendor'];
+                    $serialized_collections = '';
+                    if(isset($product_collections[$product['id']])) $serialized_collections = serialize($product_collections[$product['id']]);
+
 		    /* deal with the product images */
 		    $product_image_array = array();
 
@@ -268,7 +286,7 @@ function update_db_callback() {
 				    array_push( $product_image_array, $image['src'] );
 			    }
 			}else{
-				array_push( $product_image_array, $product['images'][0]['src'] );
+				if(isset($product['images'][0])) array_push( $product_image_array, $product['images'][0]['src'] );
 			}
 			$serialized_images = serialize($product_image_array);
   			
@@ -284,10 +302,10 @@ function update_db_callback() {
 		    }
 		    $serialized_variants = serialize( $product_variant_array );
 
-		    if( $wpdb->update( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images ), array('id'=> $product_id))){
+		    if( @$wpdb->update( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'collections' => $serialized_collections, 'tags' => $serialized_tags, 'type' => $product_type, 'vendor' => $product_vendor ), array('id'=> $product_id))){
 
 		    }else{
-				$inserted = $wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'variants' => $serialized_variants ));
+				$inserted = @$wpdb->insert( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images, 'variants' => $serialized_variants, 'collections' => $serialized_collections, 'tags' => $serialized_tags, 'type' => $product_type, 'vendor' => $product_vendor ));
 		    }
 		    //$product_rows_affected =  $wpdb->update( $table_name, array('id' => $product_id, 'title'=> $product_title, 'handle'=> $product_handle, 'description' => $product_description, 'url' => $product_url, 'images'=> $serialized_images ), array('id'=> $product_id));
 		    // If the product has variants
@@ -300,10 +318,10 @@ function update_db_callback() {
 				    $variant_option_two = $variant['option2'];
 				    $variant_price = $variant['price'];
 				    //$variant_rows_affected = $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id));
-			    	if( $wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id)) ){
+			    	if( @$wpdb->update( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id), array('variant_id'=>$variant_id)) ){
 
 			    	}else{
-						$wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );	
+						@$wpdb->insert( $variant_table_name, array('variant_id' => $variant_id, 'variant_title' => $variant_title, 'variant_option_one' => $variant_option_one, 'variant_option_two' => $variant_option_two, 'variant_price' => $variant_price, 'variant_parent_id' => $variant_parent_id) );	
 			    	}
 			    }
 		    }
@@ -333,8 +351,35 @@ function get_product_images_callback(){
 	}
 }
 
+function get_collection_data() {
+  global $collections;
+  if(!$collections) {
+    // Include the file that with the Shopify API functions.
+    // Setup some variables we will need to reference
+    require_once(plugin_dir_path(__FILE__).'/shopify-api.php');
+    $shopify_domain = get_option('shopify_store_domain');
+    $shopify_api_key = get_option('shopify_api_key');
+    $shopify_api_pass = get_option('shopify_api_pass');
+    $shopify = shopify_api_client($shopify_domain, NULL, $shopify_api_key, $shopify_api_pass, true);
+    $collections = array();
+    try {
+      $collects = $shopify('GET', '/admin/collects.json');
+    }catch( ShopifyApiException $e){
+      echo ( $e->getInfo() );
+    }catch( ShopifyCurlException $e){
+      echo( $e->getMessage() );
+    }
+
+    foreach($collects as $collect) {
+      if(!isset($collections[$collect['product_id']])) $collections[$collect['product_id']] = array();
+      $collections[$collect['product_id']][] = $collect['collection_id'];
+    }
+  }
+  return $collections;
+}
+
 // Plugin CSS File
-wp_register_style('shopify-product-style', plugins_url('shopify-products-style.css', __FILE__));
+@wp_register_style('shopify-product-style', plugins_url('shopify-products-style.css', __FILE__));
 wp_enqueue_style('shopify-product-style');
 
 
@@ -359,6 +404,30 @@ function get_product($id){
 	global $wpdb;
 	$product = $wpdb->get_results("SELECT * FROM ". PRODUCT_TABLE ." WHERE id = $id ");
 	return $product[0];
+}
+//Return array of all Products with the given tag
+function get_products_by_tag($tag) {
+	global $wpdb;
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE tags LIKE \'%"'. $tag .'"%\'');
+	return $products;
+}
+//Return array of all Products with the given collection number
+function get_products_by_collection($collection) {
+	global $wpdb;
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE collections LIKE \'%:'. $collection .';%\'');
+	return $products;
+}
+//Return array of all Products with the given vendor
+function get_products_by_vendor($vendor) {
+	global $wpdb;
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE vendor = "'. $vendor . '"');
+	return $products;
+}
+//Return array of all Products with the given type
+function get_products_by_type($type) {
+	global $wpdb;
+	$products = $wpdb->get_results('SELECT * FROM '. PRODUCT_TABLE .' WHERE type = "'. $type .'"');
+	return $products;
 }
 // Returns Variant Object
 function get_variant($id){
